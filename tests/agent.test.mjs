@@ -26,8 +26,8 @@ test("demo workflow writes history, decision and refund", async () => {
   );
 });
 test("real agent loop consumes dynamic model tool calls and returns result", async () => {
-  process.env.AGENT_MODE = "openai";
-  process.env.OPENAI_API_KEY = "fake-test-key";
+  process.env.AGENT_MODE = "gemini";
+  process.env.GEMINI_API_KEY = "fake-test-key";
   const original = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = async (_url, options) => {
@@ -35,34 +35,28 @@ test("real agent loop consumes dynamic model tool calls and returns result", asy
     calls++;
     if (calls === 1) {
       assert.ok(
-        body.tools.some((t) => t.function.name === "get_customer_orders"),
+        body.tools[0].functionDeclarations.some(
+          (t) => t.name === "get_customer_orders",
+        ),
       );
       return Response.json({
-        choices: [
+        candidates: [
           {
-            message: {
-              role: "assistant",
-              content: null,
-              tool_calls: [
-                {
-                  id: "call_test",
-                  type: "function",
-                  function: { name: "get_customer_orders", arguments: "{}" },
-                },
-              ],
+            content: {
+              parts: [{ functionCall: { name: "get_customer_orders", args: {} } }],
             },
           },
         ],
       });
     }
-    assert.equal(body.messages.at(-1).role, "tool");
-    assert.equal(JSON.parse(body.messages.at(-1).content)[0].id, "ORD-1009");
+    const last = body.contents.at(-1);
+    assert.equal(last.role, "user");
+    assert.equal(last.parts[0].functionResponse.response[0].id, "ORD-1009");
     return Response.json({
-      choices: [
+      candidates: [
         {
-          message: {
-            role: "assistant",
-            content: "Your backpack order is ORD-1009. Is it unused?",
+          content: {
+            parts: [{ text: "Your backpack order is ORD-1009. Is it unused?" }],
           },
         },
       ],
